@@ -26,8 +26,8 @@ def request_prediction(model_uri, data):
 
 
 def main():    
-    flask_uri_prediction = 'http://ben10.pythonanywhere.com/prediction'
-    flask_uri_shap_values = 'http://ben10.pythonanywhere.com/shap_values'
+    flask_uri_prediction = 'https://ben10.pythonanywhere.com/prediction'
+    flask_uri_shap_values = 'https://ben10.pythonanywhere.com/shap_values'
     
     df_info = pd.read_csv('df_app_test.csv', sep=',')
     df_info = df_info.drop('Unnamed: 0', axis=1)
