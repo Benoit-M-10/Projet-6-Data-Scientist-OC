@@ -7,7 +7,7 @@ import streamlit as st
 import requests
 import json
 
-def request_prediction(model_uri, data_json):
+def request_prediction(model_uri, data):
     headers = {"Content-Type" : "application/json"}
 
     # data_json = {'data': data}
@@ -15,7 +15,7 @@ def request_prediction(model_uri, data_json):
     #    method='POST', headers=headers, url=model_uri, json=data_json)
 
     response = requests.request(
-                method='POST', headers=headers, url=model_uri, data=data_json)
+                method='POST', headers=headers, url=model_uri, data=data)
     
     if response.status_code != 200:
         raise Exception(
@@ -25,8 +25,9 @@ def request_prediction(model_uri, data_json):
 
 
 
-def main():
-    MLFLOW_URI = 'http://127.0.0.1:5000/invocations'
+def main():    
+    flask_uri_prediction = 'http://ben10.pythonanywhere.com/prediction'
+    flask_uri_shap_values = 'http://ben10.pythonanywhere.com/shap_values'
     
     df_info = pd.read_csv('df_app_test.csv', sep=',')
     df_info = df_info.drop('Unnamed: 0', axis=1)
@@ -36,10 +37,9 @@ def main():
         )
     
     df_model = pd.read_csv('df_final_test.csv', sep=',')
+    df_model = df_model.drop('Unnamed: 0', axis=1)
     df_model = df_model.set_index('SK_ID_CURR')
     
-    df_feature_importance_class_0 = pd.read_csv('df_feature_importance_class_0.csv', sep=',')
-    df_feature_importance_class_0 = df_feature_importance_class_0.set_index('SK_ID_CURR')
     
     predict_btn = st.button('Prédire')
     if predict_btn:
@@ -47,11 +47,13 @@ def main():
         data = df_model.loc[[int(user_input)],:]
         result = data.to_json(orient="split")
         
-        pred = request_prediction(MLFLOW_URI, result)
+        dict_prediction = request_prediction(flask_uri_prediction, result)
+        dict_shap_values = request_prediction(flask_uri_shap_values, result)
         
+        df_feature_importance_class_0 = pd.DataFrame(data=dict_shap_values["data"], index=dict_shap_values["index"], columns=dict_shap_values["columns"])
         
         st.write(
-            'Ce client a {:.0%} de chance de rembourser son prêt.'.format(pred[0][0]))
+            'Ce client a {:.0%} de chance de rembourser son prêt.'.format(dict_prediction["predict_proba"][0][0]))
         
         df_user_feat_imp = df_feature_importance_class_0.loc[int(user_input), :]
         
