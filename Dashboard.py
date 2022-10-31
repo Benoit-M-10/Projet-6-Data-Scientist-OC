@@ -10,10 +10,6 @@ import json
 def request_prediction(model_uri, data):
     headers = {"Content-Type" : "application/json"}
 
-    # data_json = {'data': data}
-    # response = requests.request(
-    #    method='POST', headers=headers, url=model_uri, json=data_json)
-
     response = requests.request(
                 method='POST', headers=headers, url=model_uri, data=data)
     
@@ -24,18 +20,97 @@ def request_prediction(model_uri, data):
     return response.json()
 
 
+def display_categorical_feature(data):
+    fig = Figure(figsize=(6, 4))
+    ax = fig.subplots()
+    option_order = data.value_counts().index
+    ax.pie(data.value_counts(), labels = option_order, autopct='%.0f%%')
+    st.pyplot(fig)
+
+
+def display_numerical_feature(data):
+    fig = Figure(figsize=(6, 4))
+    ax = fig.subplots()
+    sns.histplot(data = data, ax=ax)
+    ax.tick_params(axis='x', labelrotation=45)
+    st.pyplot(fig)
+    
+    df_option = pd.DataFrame(index=['>>'])
+            
+    df_option['Nbre clients']="{:.0f}".format(data.describe()['count'])
+    df_option['Moyenne']="{:,.2f}".format(data.describe()['mean'])
+    df_option['Ecart-type']="{:,.2f}".format(data.describe()['std'])
+    df_option['Minimum']="{:,.2f}".format(data.describe()['min'])
+    df_option['Médiane']="{:,.2f}".format(data.describe()['50%'])
+    df_option['Maximum']="{:,.2f}".format(data.describe()['max'])
+    
+    st.write(df_option)
+
+
+def display_feature_description(feature, df_column_desc):
+    if "INSTAL_" in feature:
+        df_feat_explanation = df_column_desc[df_column_desc['Table']=='installments_payments.csv']
+        st.markdown("*INSTAL_ = For installments payments*")
+        
+    elif "CC_" in feature:
+        df_feat_explanation = df_column_desc[df_column_desc['Table']=='credit_card_balance.csv']
+        st.markdown("*CC_ = For credit card balance*")
+        
+    elif "BURO_" in feature or "ACTIVE_" in feature or "CLOSED_" in feature:
+        df_feat_explanation = df_column_desc[(df_column_desc['Table']=='bureau.csv') | (df_column_desc['Table']=='bureau_balance.csv')]
+        if "ACTIVE_"in feature:
+            st.markdown("*ACTIVE_ = For active credits with other financial institutions*")
+        elif "CLOSED_" in feature:
+            st.markdown("*CLOSED_ = For closed credits with other financial institutions*")
+        elif "BURO_" in feature:
+            st.markdown("*BURO_ = For credits with other financial institutions*")   
+                                
+    elif "PREV_" in feature or "APPROVED_" in feature or "REFUSED_" in feature:
+        df_feat_explanation = df_column_desc[df_column_desc['Table']=='previous_application.csv']
+        if "PREV_"in feature:
+            st.markdown("*PREV_ = For previous applications with 'Prêt à dépenser'*")
+        elif "APPROVED_" in feature:
+            st.markdown("*APPROVED_ = For previous approved applications with 'Prêt à dépenser'*")
+        elif "REFUSED_" in feature:
+            st.markdown("*REFUSED_ = For previous refused applications with 'Prêt à dépenser'*") 
+                
+    elif "POS_" in feature:
+        df_feat_explanation = df_column_desc[df_column_desc['Table']=='POS_CASH_balance.csv']
+        st.markdown("*POS_ = For POS Cash balance*")
+        
+    else:
+        df_feat_explanation = df_column_desc[df_column_desc['Table']=='application_{train|test}.csv']
+    
+    
+    if "MEAN" in feature:
+        st.markdown("*MEAN = Mean of*")
+    if "SUM" in feature:
+        st.markdown("*SUM = Sum of*")
+    if "VAR" in feature:
+        st.markdown("*VAR = Variance of*")
+    if "MIN" in feature:
+        st.markdown("*MIN = Minimum of*")
+    if "MAX" in feature:
+        st.markdown("*MAX = Maximum of*")
+    if "SIZE" in feature:
+        st.markdown("*SIZE = Count of*")
+        
+    for var in df_feat_explanation['Row']:
+        if var in feature:
+            st.markdown("*{} = {}*".format(var, df_feat_explanation[df_feat_explanation['Row']==var].iloc[0]['Description']))
+    
+
 
 def main():
-    st.set_page_config(layout="wide")
+    st.set_page_config(layout="wide", initial_sidebar_state="expanded")
         
     flask_uri_prediction = 'https://ben10.pythonanywhere.com/prediction'
     flask_uri_shap_values = 'https://ben10.pythonanywhere.com/shap_values'
     
-    df_info = pd.read_csv('df_app_test.csv', sep=',')
+    df_info = pd.read_csv('df_application_test_sample.csv', sep=',')
     df_info = df_info.drop('Unnamed: 0', axis=1)
     
-    df_model = pd.read_csv('df_final_test.csv', sep=',')
-    df_model = df_model.drop('Unnamed: 0', axis=1)
+    df_model = pd.read_csv('df_final_app_test_sample.csv', sep=',')
     df_model = df_model.set_index('SK_ID_CURR')
     
 
@@ -94,35 +169,60 @@ def main():
         
         top3_class_1 = df_user_feat_imp.sort_values(ascending=False).head(3)
         top3_class_0 = df_user_feat_imp.sort_values(ascending=True).head(3)
-       
+        
+        df_column_desc = pd.read_excel('Descriptions colonnes.xlsx')
+        
         st.write('')
         st.subheader("Les 3 principales raisons d'un remboursement du prêt :")
         
-        fig = Figure(figsize=(4, 4))
-        ax = fig.subplots()
-        ax.pie(top3_class_1, labels = top3_class_1.index, autopct='%.0f%%')
-        st.pyplot(fig)
+        col1, col2 = st.columns(2)
+        with col1:
+            fig = Figure(figsize=(4, 4))
+            ax = fig.subplots()
+            ax.pie(top3_class_1, labels = top3_class_1.index, autopct='%.0f%%')
+            st.pyplot(fig)
+               
         
         st.markdown("*Données du client sur ces variables :*")
         i = 1
         for index in top3_class_1.index:
             st.write(str(i) + ' - ' + str(index) + ' : ' + str(np.round(df_model.loc[int(user_input), index], 2)))
-            i = i +1
-
+            i = i + 1
+           
+        with st.expander("Cliquez ici pour voir la signification des 3 variables ci-dessus :"):
+            i = 1
+            for index in top3_class_1.index:
+                st.markdown("**{} - {} :**".format(str(i), index))
+                i = i + 1
+                display_feature_description(index, df_column_desc)                
+                st.write('')                 
+                
+          
         st.write('')
         st.write('')
         st.subheader("Les 3 principales raisons d'un non remboursement du prêt :")
         
-        fig = Figure(figsize=(4, 4))
-        ax = fig.subplots()
-        ax.pie(abs(top3_class_0), labels = top3_class_0.index, autopct='%.0f%%')
-        st.pyplot(fig)
+        col1, col2 = st.columns(2)
+        with col1:
+            fig = Figure(figsize=(4, 4))
+            ax = fig.subplots()
+            ax.pie(abs(top3_class_0), labels = top3_class_0.index, autopct='%.0f%%')
+            st.pyplot(fig)
         
         st.markdown("*Données du client sur ces variables :*")
         i = 1
         for index in top3_class_0.index:
             st.write(str(i) + ' - ' + str(index) + ' : ' + str(np.round(df_model.loc[int(user_input), index], 2)))
             i = i +1
+        
+        with st.expander("Cliquez ici pour voir la signification des 3 variables ci-dessus :"):
+            i = 1
+            for index in top3_class_0.index:
+                st.markdown("**{} - {} :**".format(str(i), index))
+                i = i + 1
+                display_feature_description(index, df_column_desc)                
+                st.write('')  
+        
     
     elif page_to_display=="Comparaison par rapport à d'autres clients":
         st.header("Comparaison par rapport à d'autres clients :")
@@ -144,29 +244,10 @@ def main():
                     st.markdown("**Comparaison concernant {} :**".format(options[k]))
                     st.markdown("*Donnée du client : {}*".format(str(df_info_transpose.loc[options[k], df_info_transpose.columns[0]])))
                     if df_info[options[k]].dtype == 'object':
-                        fig = Figure(figsize=(6, 4))
-                        ax = fig.subplots()
-                        option_order = df_info[options[k]].value_counts().index
-                        ax.pie(df_info[options[k]].value_counts(), labels = option_order, autopct='%.0f%%')
-                        st.pyplot(fig)
+                        display_categorical_feature(df_info[options[k]])
                         
                     else:
-                        fig = Figure(figsize=(6, 4))
-                        ax = fig.subplots()
-                        sns.histplot(data = df_info[options[k]], ax=ax)
-                        ax.tick_params(axis='x', labelrotation=45)
-                        st.pyplot(fig)
-                        
-                        df_option = pd.DataFrame(index=['>>'])
-                                
-                        df_option['Nbre clients']="{:.0f}".format(df_info[options[k]].describe()['count'])
-                        df_option['Moyenne']="{:,.2f}".format(df_info[options[k]].describe()['mean'])
-                        df_option['Ecart-type']="{:,.2f}".format(df_info[options[k]].describe()['std'])
-                        df_option['Minimum']="{:,.2f}".format(df_info[options[k]].describe()['min'])
-                        df_option['Médiane']="{:,.2f}".format(df_info[options[k]].describe()['50%'])
-                        df_option['Maximum']="{:,.2f}".format(df_info[options[k]].describe()['max'])
-                        
-                        st.write(df_option)
+                        display_numerical_feature(df_info[options[k]])
                     
                     st.write('')
                     st.write('')
@@ -177,29 +258,10 @@ def main():
                         st.markdown("**Comparaison concernant {} :**".format(options[k+1]))
                         st.markdown("*Donnée du client : {}*".format(str(df_info_transpose.loc[options[k+1], df_info_transpose.columns[0]])))
                         if df_info[options[k+1]].dtype == 'object':
-                            fig = Figure(figsize=(6, 4))
-                            ax = fig.subplots()
-                            option_order = df_info[options[k+1]].value_counts().index
-                            ax.pie(df_info[options[k+1]].value_counts(), labels = option_order, autopct='%.0f%%')
-                            st.pyplot(fig)
+                            display_categorical_feature(df_info[options[k+1]])
                             
                         else:
-                            fig = Figure(figsize=(6, 4))
-                            ax = fig.subplots()
-                            sns.histplot(data = df_info[options[k+1]], ax=ax)
-                            ax.tick_params(axis='x', labelrotation=45)
-                            st.pyplot(fig)
-                            
-                            df_option = pd.DataFrame(index=['>>'])
-                                
-                            df_option['Nbre clients']="{:.0f}".format(df_info[options[k+1]].describe()['count'])
-                            df_option['Moyenne']="{:,.2f}".format(df_info[options[k+1]].describe()['mean'])
-                            df_option['Ecart-type']="{:,.2f}".format(df_info[options[k+1]].describe()['std'])
-                            df_option['Minimum']="{:,.2f}".format(df_info[options[k+1]].describe()['min'])
-                            df_option['Médiane']="{:,.2f}".format(df_info[options[k+1]].describe()['50%'])
-                            df_option['Maximum']="{:,.2f}".format(df_info[options[k+1]].describe()['max'])
-                            
-                            st.write(df_option)
+                            display_numerical_feature(df_info[options[k+1]])
                         
                         st.write('')
                         st.write('')
@@ -218,19 +280,26 @@ def main():
                     filter.append(df_user.loc[df_user.index[0],option])
                 
                 else:
-                    st.markdown("- *Donnée du client concernant {} : {}*".format(option, df_info_transpose.loc[option, df_info_transpose.columns[0]]))
+                    st.markdown("- *Donnée du client concernant {} : {:,}*".format(option, float(df_info_transpose.loc[option, df_info_transpose.columns[0]])))
                     
                     if df_info[option].dtype == 'int64':
+                        min_value = int(np.int64(df_info_transpose.loc[option, df_info_transpose.columns[0]])*0.7)
+                        max_value = int(np.int64(df_info_transpose.loc[option, df_info_transpose.columns[0]])*1.3) 
+                        
                         lower_bound = int(np.int64(df_info_transpose.loc[option, df_info_transpose.columns[0]])*0.9)
                         upper_bound = int(np.int64(df_info_transpose.loc[option, df_info_transpose.columns[0]])*1.1) 
                     else:
+                        min_value = float(np.float64(df_info_transpose.loc[option, df_info_transpose.columns[0]])*0.7)
+                        max_value = float(np.float64(df_info_transpose.loc[option, df_info_transpose.columns[0]])*1.3)
+                        
                         lower_bound = float(np.float64(df_info_transpose.loc[option, df_info_transpose.columns[0]])*0.9)
                         upper_bound = float(np.float64(df_info_transpose.loc[option, df_info_transpose.columns[0]])*1.1)
-                
-                    values = st.slider("Vous pouvez ajuster la plage de similarité à appliquer pour cet attribut : ", df_info[option].min(), df_info[option].max(),
-                                    (lower_bound, upper_bound))
                     
-                    st.write("Vous avez choisis la plage de similarité à appliquer suivante : " + option + " " + str(np.round(values, 2)))
+                    
+                    values = st.slider("Vous pouvez ajuster la plage de similarité à appliquer pour cet attribut : ", min_value, max_value,
+                                      (lower_bound, upper_bound))
+                    
+                    st.write("Pour l'attribut {}, vous avez choisi d'appliquer la plage de similarité suivante : {}".format(option, values))
                     
                     filter.append(values)
                     
@@ -264,29 +333,10 @@ def main():
                         st.markdown("**Comparaison concernant {} :**".format(options[k]))
                         st.markdown("*Donnée du client : {}*".format(str(df_info_transpose.loc[options[k], df_info_transpose.columns[0]])))
                         if df_info[options[k]].dtype == 'object':
-                            fig = Figure(figsize=(6, 4))
-                            ax = fig.subplots()
-                            option_order = df_info_filtered[options[k]].value_counts().index
-                            ax.pie(df_info_filtered[options[k]].value_counts(), labels = option_order, autopct='%.0f%%')
-                            st.pyplot(fig)
+                            display_categorical_feature(df_info_filtered[options[k]])
                             
                         else:
-                            fig = Figure(figsize=(6, 4))
-                            ax = fig.subplots()
-                            sns.histplot(data = df_info_filtered[options[k]], ax=ax)
-                            ax.tick_params(axis='x', labelrotation=45)
-                            st.pyplot(fig)
-                            
-                            df_option = pd.DataFrame(index=['>>'], dtype=np.float64)
-                                
-                            df_option['Nbre clients']="{:.0f}".format(df_info_filtered[options[k]].describe()['count'])
-                            df_option['Moyenne']="{:,.2f}".format(df_info_filtered[options[k]].describe()['mean'])
-                            df_option['Ecart-type']="{:,.2f}".format(df_info_filtered[options[k]].describe()['std'])
-                            df_option['Minimum']="{:,.2f}".format(df_info_filtered[options[k]].describe()['min'])
-                            df_option['Médiane']="{:,.2f}".format(df_info_filtered[options[k]].describe()['50%'])
-                            df_option['Maximum']="{:,.2f}".format(df_info_filtered[options[k]].describe()['max'])
-                            
-                            st.write(df_option)
+                            display_numerical_feature(df_info_filtered[options[k]])
                         
                         st.write('')
                         st.write('')
@@ -296,29 +346,10 @@ def main():
                             st.markdown("**Comparaison concernant {} :**".format(options[k+1]))
                             st.markdown("*Donnée du client : {}*".format(str(df_info_transpose.loc[options[k+1], df_info_transpose.columns[0]])))
                             if df_info[options[k+1]].dtype == 'object':
-                                fig = Figure(figsize=(6, 4))
-                                ax = fig.subplots()
-                                option_order = df_info_filtered[options[k+1]].value_counts().index
-                                ax.pie(df_info_filtered[options[k+1]].value_counts(), labels = option_order, autopct='%.0f%%')
-                                st.pyplot(fig)
+                                display_categorical_feature(df_info_filtered[options[k+1]])
                                 
                             else:
-                                fig = Figure(figsize=(6, 4))
-                                ax = fig.subplots()
-                                sns.histplot(data = df_info_filtered[options[k+1]], ax=ax)
-                                ax.tick_params(axis='x', labelrotation=45)
-                                st.pyplot(fig)
-                                
-                                df_option = pd.DataFrame(index=['>>'], dtype=np.float64)
-                                
-                                df_option['Nbre clients']="{:.0f}".format(df_info_filtered[options[k+1]].describe()['count'])
-                                df_option['Moyenne']="{:,.2f}".format(df_info_filtered[options[k+1]].describe()['mean'])
-                                df_option['Ecart-type']="{:,.2f}".format(df_info_filtered[options[k+1]].describe()['std'])
-                                df_option['Minimum']="{:,.2f}".format(df_info_filtered[options[k+1]].describe()['min'])
-                                df_option['Médiane']="{:,.2f}".format(df_info_filtered[options[k+1]].describe()['50%'])
-                                df_option['Maximum']="{:,.2f}".format(df_info_filtered[options[k+1]].describe()['max'])
-                                
-                                st.write(df_option)
+                                display_numerical_feature(df_info_filtered[options[k+1]])
                             
                             st.write('')
                             st.write('')
