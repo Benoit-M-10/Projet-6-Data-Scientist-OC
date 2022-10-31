@@ -299,7 +299,7 @@ def main():
                     values = st.slider("Vous pouvez ajuster la plage de similarité à appliquer pour cet attribut : ", min_value, max_value,
                                       (lower_bound, upper_bound))
                     
-                    st.write("Pour l'attribut {}, vous avez choisi d'appliquer la plage de similarité suivante : {}".format(option, values))
+                    st.write("Pour l'attribut {}, vous avez choisi d'appliquer la plage de similarité suivante : [{:,.2f}, {:,.2f}]".format(option, values[0], values[1]))
                     
                     filter.append(values)
                     
